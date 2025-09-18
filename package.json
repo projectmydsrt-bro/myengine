@@ -1,8 +1,12 @@
 {
-  "name": "@dsrtjz/myengine",
+  "name": "myengine",
   "version": "1.0.0",
-  "description": "Engine 3D buatan sendiri",
+  "description": "A lightweight 3D engine",
   "main": "index.js",
-  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["3d", "engine", "webgl", "threejs"],
+  "author": "Nama Kamu",
   "license": "MIT"
 }
