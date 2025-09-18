@@ -1,0 +1,8 @@
+{
+  "name": "myengine",
+  "version": "1.0.0",
+  "description": "Engine 3D buatan sendiri mirip Three.js",
+  "main": "index.js",
+  "type": "module",
+  "license": "MIT"
+}
