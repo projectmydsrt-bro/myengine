@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Three.js + CSS Overlay</title>
+<title>DSRT.js Background Animasi Lanjutan</title>
 <style>
   body { margin:0; overflow:hidden; background:black; }
+  canvas { display:block; width:100%; height:100%; }
   #ui-overlay {
     position: absolute;
     top: 10px;
@@ -18,32 +19,203 @@
 </head>
 <body>
 <div id="ui-overlay">
-  <button id="btnRotate">Rotate Cube</button>
-  <p>Three.js Demo</p>
+  <button id="btnToggleRotate">Toggle Rotate</button>
+  <p>DSRT.js Background Animasi Lanjutan</p>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<canvas id="dsrtCanvas"></canvas>
+
 <script>
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+// ----------- DSRT.js Modular Engine Starter -----------
 
-camera.position.z = 5;
+// ---------- Math / Helper ----------
+function identity(){ return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
+function perspective(fov,aspect,near,far){
+  const f=1/Math.tan(fov*Math.PI/180/2), nf=1/(near-far), out=new Float32Array(16);
+  out[0]=f/aspect; out[5]=f; out[10]=(far+near)*nf; out[11]=-1; out[14]=2*far*near*nf;
+  return out;
+}
+function rotateY(m,rad){
+  const c=Math.cos(rad),s=Math.sin(rad),out=m.slice();
+  out[0]=m[0]*c+m[8]*s; out[2]=m[0]*(-s)+m[8]*c;
+  out[8]=m[2]*c+m[10]*s; out[10]=m[2]*(-s)+m[10]*c;
+  return out;
+}
 
-const geometry = new THREE.BoxGeometry();
-const material = new THREE.MeshNormalMaterial();
-const cube = new THREE.Mesh(geometry, material);
+// ---------- DSRT Geometry ----------
+class DSRTGeometry {
+  constructor(type,...params){
+    this.type = type;
+    this.vertices=[];
+    switch(type){
+      case 'cube':
+        const [w=1,h=1,d=1] = params;
+        this.vertices=[
+          -w/2,-h/2,d/2, w/2,-h/2,d/2, w/2,h/2,d/2,
+          -w/2,-h/2,d/2, w/2,h/2,d/2, -w/2,h/2,d/2,
+          -w/2,-h/2,-d/2, -w/2,h/2,-d/2, w/2,h/2,-d/2,
+          -w/2,-h/2,-d/2, w/2,h/2,-d/2, w/2,-h/2,-d/2,
+          -w/2,-h/2,-d/2, -w/2,-h/2,d/2, -w/2,h/2,d/2,
+          -w/2,-h/2,-d/2, -w/2,h/2,d/2, -w/2,h/2,-d/2,
+          w/2,-h/2,-d/2, w/2,h/2,-d/2, w/2,h/2,d/2,
+          w/2,-h/2,-d/2, w/2,h/2,d/2, w/2,-h/2,d/2,
+          -w/2,h/2,-d/2, -w/2,h/2,d/2, w/2,h/2,d/2,
+          -w/2,h/2,-d/2, w/2,h/2,d/2, w/2,h/2,-d/2,
+          -w/2,-h/2,-d/2, w/2,-h/2,-d/2, w/2,-h/2,d/2,
+          -w/2,-h/2,-d/2, w/2,-h/2,d/2, -w/2,-h/2,d/2
+        ];
+        break;
+      case 'plane':
+        const [pw=2,ph=2] = params;
+        this.vertices=[
+          -pw/2,0,-ph/2, pw/2,0,-ph/2, pw/2,0,ph/2,
+          -pw/2,0,-ph/2, pw/2,0,ph/2, -pw/2,0,ph/2
+        ];
+        break;
+      case 'sphere':
+        const [radius=1,wSeg=16,hSeg=16] = params;
+        for(let y=0;y<=hSeg;y++){
+          const theta=y*Math.PI/hSeg;
+          for(let x=0;x<=wSeg;x++){
+            const phi=x*2*Math.PI/wSeg;
+            const vx = radius*Math.sin(theta)*Math.cos(phi);
+            const vy = radius*Math.cos(theta);
+            const vz = radius*Math.sin(theta)*Math.sin(phi);
+            this.vertices.push(vx,vy,vz);
+          }
+        }
+        break;
+    }
+  }
+}
+
+// ---------- DSRT Mesh ----------
+class DSRTMesh {
+  constructor(geometry,color=[1,0,0]){
+    this.geometry = geometry;
+    this.color = color;
+    this.rotationY = 0;
+  }
+}
+
+// ---------- DSRT Scene ----------
+class DSRTScene {
+  constructor(){
+    this.objects=[];
+  }
+  add(mesh){ this.objects.push(mesh); }
+}
+
+// ---------- DSRT Renderer ----------
+class DSRTRenderer {
+  constructor(gl){
+    this.gl = gl;
+    this.uModel = gl.getUniformLocation(program,"uModel");
+    this.uColor = gl.getUniformLocation(program,"uColor");
+    this.gl.clearColor(0,0,0,1);
+    this.gl.enable(gl.DEPTH_TEST);
+  }
+  render(scene){
+    const gl=this.gl;
+    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    for(let mesh of scene.objects){
+      let model = identity();
+      model = rotateY(model,mesh.rotationY);
+      gl.uniformMatrix4fv(this.uModel,false,model);
+      gl.uniform3fv(this.uColor,mesh.color);
+      gl.bindVertexArray(mesh.vao);
+      gl.drawArrays(gl.TRIANGLES,0,mesh.geometry.vertices.length/3);
+      gl.bindVertexArray(null);
+    }
+  }
+}
+
+// ---------- Setup GL ----------
+const gl = canvas.getContext('webgl2');
+if(!gl) alert("WebGL2 not supported");
+
+const vsShader=`#version 300 es
+in vec3 aPosition;
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProj;
+void main(){ gl_Position=uProj*uView*uModel*vec4(aPosition,1.0); }`;
+const fsShader=`#version 300 es
+precision mediump float;
+uniform vec3 uColor;
+out vec4 outColor;
+void main(){ outColor=vec4(uColor,1.0); }`;
+
+function createShader(gl,type,src){
+  const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s;
+}
+function createProgram(gl,vs,fs){
+  const p=gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p)); return p;
+}
+const program=createProgram(gl,createShader(gl,gl.VERTEX_SHADER,vsShader),createShader(gl,gl.FRAGMENT_SHADER,fsShader));
+gl.useProgram(program);
+const uView = gl.getUniformLocation(program,"uView");
+const uProj = gl.getUniformLocation(program,"uProj");
+gl.uniformMatrix4fv(uProj,false,perspective(60,canvas.width/canvas.height,0.1,1000));
+gl.uniformMatrix4fv(uView,false,identity());
+
+// ---------- Create Scene ----------
+const scene = new DSRTScene();
+
+// Cube
+const cubeGeo = new DSRTGeometry('cube',1,1,1);
+cubeGeo.vao = (()=>{ const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
+  const vbo=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(cubeGeo.vertices),gl.STATIC_DRAW);
+  const posLoc=gl.getAttribLocation(program,"aPosition");
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc,3,gl.FLOAT,false,0,0);
+  gl.bindVertexArray(null); return vao;
+})();
+const cube = new DSRTMesh(cubeGeo,[0.2,0.8,1]);
 scene.add(cube);
 
-let rotating = false;
-document.getElementById('btnRotate').onclick = () => { rotating = !rotating; }
+// Plane
+const planeGeo = new DSRTGeometry('plane',4,4);
+planeGeo.vao = (()=>{ const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
+  const vbo=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(planeGeo.vertices),gl.STATIC_DRAW);
+  const posLoc=gl.getAttribLocation(program,"aPosition");
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc,3,gl.FLOAT,false,0,0);
+  gl.bindVertexArray(null); return vao;
+})();
+const plane = new DSRTMesh(planeGeo,[0.8,0.2,0.2]);
+scene.add(plane);
 
-function animate(){
+// Sphere
+const sphereGeo = new DSRTGeometry('sphere',0.5,12,12);
+sphereGeo.vao = (()=>{ const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
+  const vbo=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(sphereGeo.vertices),gl.STATIC_DRAW);
+  const posLoc=gl.getAttribLocation(program,"aPosition");
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc,3,gl.FLOAT,false,0,0);
+  gl.bindVertexArray(null); return vao;
+})();
+const sphere = new DSRTMesh(sphereGeo,[0.2,1,0.4]);
+scene.add(sphere);
+
+// ---------- Animate ----------
+const renderer = new DSRTRenderer(gl);
+let rotating=false;
+document.getElementById('btnToggleRotate').onclick = ()=> rotating=!rotating;
+
+function animate(time){
+  if(rotating){
+    cube.rotationY += 0.01;
+    sphere.rotationY += 0.008;
+    plane.rotationY += 0.004;
+  }
+  renderer.render(scene);
   requestAnimationFrame(animate);
-  if(rotating) cube.rotation.y += 0.01;
-  renderer.render(scene,camera);
 }
 animate();
 </script>
