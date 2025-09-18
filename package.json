@@ -1,5 +1,5 @@
 {
-  "name": "@projectmydsrt-bro/myengine",
+  "name": "@dsrtjz/myengine",
   "version": "1.0.0",
   "description": "Engine 3D buatan sendiri",
   "main": "index.js",
