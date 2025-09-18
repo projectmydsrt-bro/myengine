@@ -3,10 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DSRT.js + CSS Overlay</title>
+<title>Three.js + CSS Overlay</title>
 <style>
   body { margin:0; overflow:hidden; background:black; }
-  canvas { display:block; width:100%; height:100%; }
   #ui-overlay {
     position: absolute;
     top: 10px;
@@ -20,112 +19,33 @@
 <body>
 <div id="ui-overlay">
   <button id="btnRotate">Rotate Cube</button>
-  <p>DSRT.js Minimal Demo</p>
+  <p>Three.js Demo</p>
 </div>
 
-<canvas id="dsrtCanvas"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script>
-// --- DSRT.js Minimal (WebGL2) ---
-const canvas = document.getElementById('dsrtCanvas');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-const gl = canvas.getContext('webgl2');
-if(!gl) alert("WebGL2 not supported");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-// Shader
-const vs = `#version 300 es
-in vec3 aPosition;
-uniform mat4 uModel,uView,uProj;
-void main(){ gl_Position=uProj*uView*uModel*vec4(aPosition,1.0); }`;
-const fs = `#version 300 es
-precision mediump float;
-uniform vec3 uColor;
-out vec4 outColor;
-void main(){ outColor=vec4(uColor,1.0); }`;
+camera.position.z = 5;
 
-function createShader(gl,type,src){
-  const s=gl.createShader(type);
-  gl.shaderSource(s,src);
-  gl.compileShader(s);
-  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
-  return s;
+const geometry = new THREE.BoxGeometry();
+const material = new THREE.MeshNormalMaterial();
+const cube = new THREE.Mesh(geometry, material);
+scene.add(cube);
+
+let rotating = false;
+document.getElementById('btnRotate').onclick = () => { rotating = !rotating; }
+
+function animate(){
+  requestAnimationFrame(animate);
+  if(rotating) cube.rotation.y += 0.01;
+  renderer.render(scene,camera);
 }
-function createProgram(gl,vs,fs){
-  const p=gl.createProgram();
-  gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
-  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
-  return p;
-}
-const program = createProgram(gl,createShader(gl,gl.VERTEX_SHADER,vs),createShader(gl,gl.FRAGMENT_SHADER,fs));
-gl.useProgram(program);
-
-// Cube vertices
-const vertices = [
-  -0.5,-0.5,0.5, 0.5,-0.5,0.5, 0.5,0.5,0.5,
-  -0.5,-0.5,0.5, 0.5,0.5,0.5, -0.5,0.5,0.5,
-  -0.5,-0.5,-0.5, -0.5,0.5,-0.5, 0.5,0.5,-0.5,
-  -0.5,-0.5,-0.5, 0.5,0.5,-0.5, 0.5,-0.5,-0.5,
-  -0.5,-0.5,-0.5, -0.5,-0.5,0.5, -0.5,0.5,0.5,
-  -0.5,-0.5,-0.5, -0.5,0.5,0.5, -0.5,0.5,-0.5,
-  0.5,-0.5,-0.5, 0.5,0.5,-0.5, 0.5,0.5,0.5,
-  0.5,-0.5,-0.5, 0.5,0.5,0.5, 0.5,-0.5,0.5,
-  -0.5,0.5,-0.5, -0.5,0.5,0.5, 0.5,0.5,0.5,
-  -0.5,0.5,-0.5, 0.5,0.5,0.5, 0.5,0.5,-0.5,
-  -0.5,-0.5,-0.5, 0.5,-0.5,-0.5, 0.5,-0.5,0.5,
-  -0.5,-0.5,-0.5, 0.5,-0.5,0.5, -0.5,-0.5,0.5
-];
-
-const vao=gl.createVertexArray();
-const vbo=gl.createBuffer();
-gl.bindVertexArray(vao);
-gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
-gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
-const posLoc = gl.getAttribLocation(program,"aPosition");
-gl.enableVertexAttribArray(posLoc);
-gl.vertexAttribPointer(posLoc,3,gl.FLOAT,false,0,0);
-gl.bindVertexArray(null);
-
-// Mat4 helpers
-function identity(){ return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
-function perspective(fov,aspect,near,far){
-  const f=1/Math.tan(fov*Math.PI/180/2), nf=1/(near-far), out=new Float32Array(16);
-  out[0]=f/aspect; out[5]=f; out[10]=(far+near)*nf; out[11]=-1; out[14]=2*far*near*nf;
-  return out;
-}
-function rotateY(m,rad){
-  const c=Math.cos(rad),s=Math.sin(rad),out=m.slice();
-  out[0]=m[0]*c+m[8]*s; out[2]=m[0]*(-s)+m[8]*c; out[8]=m[2]*c+m[10]*s; out[10]=m[2]*(-s)+m[10]*c;
-  return out;
-}
-
-// Camera / uniform
-const uView = gl.getUniformLocation(program,"uView");
-const uProj = gl.getUniformLocation(program,"uProj");
-const uModel = gl.getUniformLocation(program,"uModel");
-const uColor = gl.getUniformLocation(program,"uColor");
-gl.uniformMatrix4fv(uProj,false,perspective(60,canvas.width/canvas.height,0.1,1000));
-gl.uniformMatrix4fv(uView,false,identity());
-
-let rotating=false;
-document.getElementById('btnRotate').onclick = ()=>{ rotating=!rotating; }
-
-function render(time){
-  gl.clearColor(0,0,0,1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.enable(gl.DEPTH_TEST);
-
-  let model = identity();
-  if(rotating) model = rotateY(model,time*0.001);
-  gl.uniformMatrix4fv(uModel,false,model);
-  gl.uniform3fv(uColor,[0.2,0.8,1.0]);
-
-  gl.bindVertexArray(vao);
-  gl.drawArrays(gl.TRIANGLES,0,vertices.length/3);
-  gl.bindVertexArray(null);
-
-  requestAnimationFrame(render);
-}
-requestAnimationFrame(render);
+animate();
 </script>
 </body>
 </html>
