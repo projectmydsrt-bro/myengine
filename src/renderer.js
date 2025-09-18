@@ -1,20 +1,28 @@
 export class Renderer {
   constructor() {
-    this.domElement = document.createElement("canvas");
-    this.ctx = this.domElement.getContext("2d");  // atau WebGL jika lebih kompleks
+    this.canvas = document.createElement("canvas");
+    this.context = this.canvas.getContext("2d");
   }
 
   setSize(width, height) {
-    this.domElement.width = width;
-    this.domElement.height = height;
+    this.canvas.width = width;
+    this.canvas.height = height;
+  }
+
+  get domElement() {
+    return this.canvas;
   }
 
   render(scene, camera) {
-    // contoh sederhana: bersihkan canvas, lalu tampil jumlah objek
-    this.ctx.clearRect(0, 0, this.domElement.width, this.domElement.height);
-    this.ctx.fillStyle = "black";
-    this.ctx.fillRect(0, 0, this.domElement.width, this.domElement.height);
-    this.ctx.fillStyle = "white";
-    this.ctx.fillText(`Objects: ${scene.objects.length}`, 10, 20);
+    this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.context.fillStyle = "blue";
+    scene.objects.forEach(obj => {
+      this.context.fillRect(
+        this.canvas.width / 2 - 50,
+        this.canvas.height / 2 - 50,
+        100,
+        100
+      );
+    });
   }
 }
