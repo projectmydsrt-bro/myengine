@@ -1,5 +1,5 @@
 export class Engine {
   constructor() {
-    console.log("✅ Engine aktif");
+    console.log("Engine created");
   }
 }
