@@ -1,14 +1,8 @@
 {
-  "name": "myengine-demo",
+  "name": "myengine",
   "version": "1.0.0",
+  "description": "Engine 3D buatan sendiri",
+  "main": "index.js",
   "type": "module",
-  "scripts": {
-    "dev": "vite"
-  },
-  "dependencies": {
-    "myengine": "github:projectmydsrt-bro/myengine"
-  },
-  "devDependencies": {
-    "vite": "^5.0.0"
-  }
+  "license": "MIT"
 }
